@@ -1,0 +1,111 @@
+{
+  "$schema_note": "Machine-readable snapshot of RhythmPrism's cross-service value stream. See VSM.md for the human-readable / diagram version. Snapshot date: 2026-07-15. Code is the source of truth; update this when routes or inter-service calls change.",
+  "services": {
+    "rp-frontend": {
+      "stack": "React 19 + TypeScript + Vite + Tailwind CSS v4",
+      "port": 5000,
+      "role": "SPA, single view-state machine in App.tsx (no router lib)",
+      "views": ["browse", "search", "submit", "mine", "detail", "edit", "profile"],
+      "calls": ["rp-backend only, via /api and /sonolus (proxied by nginx / Vite VITE_PROXY_TARGET)"],
+      "calls_converters_directly": false,
+      "key_files": {
+        "views": "src/App.tsx",
+        "api_client": "src/lib/api.ts",
+        "auth_client": "src/lib/auth.ts",
+        "submit": "src/components/SubmitChart.tsx",
+        "edit": "src/components/EditChart.tsx",
+        "card": "src/components/ChartCard.tsx"
+      }
+    },
+    "rp-backend": {
+      "stack": "Python 3.14 / FastAPI + SQLAlchemy + PostgreSQL",
+      "port": 5001,
+      "role": "REST API for the web frontend (router/web) + Sonolus game-client protocol (router/sonolus). Owns all writes to DB and S3; orchestrates the 3 converter microservices.",
+      "routers": {
+        "router/sonolus": ["authenticate", "info/*", "list/*", "detail/*", "community/*", "server_info"],
+        "router/web": ["chart/post_chart", "chart/edit_chart", "chart/get_chart", "chart/delete_chart", "chart/tag", "user/auth", "user/discord", "user/sonolus", "user/get_user", "user/edit_user"]
+      },
+      "external_calls": [
+        {"target": "rp-level-converter", "via": "utils/convert.py:convert_chart", "env_var": "LEVEL_CONVERTER_URL"},
+        {"target": "rp-bgm-converter", "via": "utils/convert.py:convert_bgm", "env_var": "BGM_CONVERTER_URL"},
+        {"target": "rp-image-converter", "via": "utils/convert.py:convert_jacket", "env_var": "IMAGE_CONVERTER_URL"}
+      ],
+      "storage": {
+        "backend": "S3-compatible (aioboto3), MinIO in dev",
+        "client": "utils/s3utils.py",
+        "key_format": "{chart_id}/{sha1_hash}",
+        "url_format": "S3_HOST + '/' + key",
+        "objects_stored": ["original chart file", "converted level data (gzip JSON)", "bgm.mp3", "preview.mp3", "jacket.png", "bg.png"]
+      },
+      "db_models": ["User", "UserAuth", "UserTag", "Event", "Chart", "ChartTagMaster", "ChartTag", "ChartCollaborator", "ChartLike", "CommunityComment", "PostItem", "PlaylistItem", "ReplayItem", "SkinItem", "BackgroundItem", "EffectItem", "ParticleItem", "EngineItem"],
+      "auth": {
+        "web": "Discord OAuth2 -> httpOnly JWT cookies (access_token/refresh_token), utils/auth.py + utils/dependencies.py",
+        "sonolus_client": "sonolus_id lookup -> separate Sonolus session id, router/sonolus/authenticate.py",
+        "linking": "router/web/user/sonolus.py links a User's Discord account to a sonolus_id"
+      },
+      "background_jobs": {
+        "scheduler": "utils/scheduler.py, APScheduler BackgroundScheduler: flips Chart.status SCHEDULED -> PUBLIC at a future datetime",
+        "webhook": "utils/webhook.py: send_new_chart_notice posts to Discord (DISCORD_WEBHOOK_URL) as a BackgroundTask after first publish"
+      }
+    },
+    "rp-bgm-converter": {
+      "stack": "Python 3.14 / FastAPI + ffmpeg-python",
+      "port": 5003,
+      "role": "Stateless audio converter, no storage/DB access",
+      "endpoint": {"method": "POST", "path": "/convert", "input": "multipart file (audio) + query params start_time (default 40s), preview_seconds (default 15s)", "output": "zip(bgm.mp3 192k, preview.mp3 128k mono w/ loudnorm+fade) streamed as application/zip"}
+    },
+    "rp-image-converter": {
+      "stack": "Python 3.14 / FastAPI + OpenCV/Pillow",
+      "port": 5004,
+      "role": "Stateless image converter, no storage/DB access",
+      "endpoint": {"method": "POST", "path": "/convert", "input": "multipart file (jacket image)", "output": "zip(jacket.png 500x500 letterboxed, bg.png composited from static templates in assets/original/) streamed as application/zip"}
+    },
+    "rp-level-converter": {
+      "stack": "Node.js 24 / Hono + usctool + @next-sekai/sonolus-next-sekai-engine",
+      "port": 5005,
+      "role": "Stateless chart-format converter, no storage/DB access",
+      "endpoint": {"method": "POST", "path": "/convert", "input": "raw request body, format auto-detected: gzip LevelData JSON | JSON w/ usc field | SUS text", "output": "JSON { chartformat, leveldata } on success, HTTP 500 { error } on failure"}
+    }
+  },
+  "infra": {
+    "reverse_proxy": {"service": "nginx", "port": 80, "rules": ["/api, /sonolus -> rp-backend:5001", "everything else -> rp-frontend:5000"]},
+    "db": {"service": "postgres:17", "port": "5002 (host) -> 5432"},
+    "object_storage_dev": {"service": "minio/minio", "ports": [9000, 9001], "bucket_setup": "createbuckets one-shot container runs mc mb + mc anonymous set public"}
+  },
+  "flows": {
+    "chart_publish": [
+      "rp-frontend SubmitChart.tsx: user fills metadata + selects chart_file/bgm_file/jacket_file",
+      "POST /api/chart (multipart) -> rp-backend post_chart.py, chart_id generated",
+      "fan-out (independent, parallelizable): level-converter /convert, bgm-converter /convert, image-converter /convert",
+      "rp-backend: SHA1 hash each converted artifact, build S3 keys",
+      "rp-backend: parallel upload all artifacts to S3 (asyncio.gather)",
+      "rp-backend: INSERT Chart + BackgroundItem rows, commit",
+      "rp-backend BackgroundTask: Discord webhook notice if published immediately",
+      "rp-backend APScheduler: if status=SCHEDULED, flip to PUBLIC at future datetime"
+    ],
+    "chart_edit": [
+      "rp-frontend EditChart.tsx: user replaces a subset of fields/files",
+      "PUT /api/chart?chart_id= (multipart, only changed fields) -> rp-backend edit_chart.py",
+      "only-changed files re-sent to the relevant converter(s)",
+      "upload new S3 objects, then delete superseded ones",
+      "UPDATE Chart row, commit",
+      "BackgroundTask: Discord webhook only on first-ever publish"
+    ],
+    "sonolus_client_read": [
+      "Sonolus game client authenticates via router/sonolus/authenticate.py (sonolus_id lookup)",
+      "client requests info/list/detail/community endpoints",
+      "rp-backend reads Chart/BackgroundItem/etc rows from Postgres",
+      "rp-backend returns stored S3 public URLs directly (S3_HOST + key), no conversion at read time"
+    ],
+    "auth_web": [
+      "user clicks Discord login -> GET /api/discord/login redirect",
+      "Discord OAuth2 callback -> router/web/user/discord.py creates/updates User",
+      "httpOnly JWT cookies (access_token/refresh_token) set",
+      "subsequent requests verified via utils/dependencies.get_current_user_id"
+    ],
+    "auth_sonolus_link": [
+      "logged-in web user links a Sonolus account via router/web/user/sonolus.py",
+      "sets User.sonolus_id, enabling router/sonolus/authenticate.py to recognize the client later"
+    ]
+  }
+}

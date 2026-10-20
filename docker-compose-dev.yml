@@ -1,0 +1,152 @@
+services:
+  rp-frontend:
+    image: node:24-alpine
+    working_dir: /app
+    environment:
+      VITE_PROXY_TARGET: http://rp-backend:5001
+      VITE_DISCORD_SERVER_URL: ${DISCORD_SERVER_URL:-}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./rp-frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:5000/"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  rp-backend:
+    build: ./rp-backend
+    env_file:
+      - .env.dev.test
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./rp-backend:/app
+      - /app/.venv
+    command:  uv run uvicorn main:app --host 0.0.0.0 --port 5001 --reload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  postgres:
+    image: postgres:17
+    restart: always
+    shm_size: "256mb"
+    ports:
+      - "5002:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  rp-level-converter:
+    build: ./rp-level-converter
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./rp-level-converter:/app
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      s3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  s3:
+    image: rustfs/rustfs:latest
+    container_name: rp-s3
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_VOLUMES: /data/rustfs0
+      RUSTFS_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      RUSTFS_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - s3_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  createbuckets:
+    image: amazon/aws-cli:latest
+    depends_on:
+      s3:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      aws --endpoint-url http://s3:9000 s3api create-bucket --bucket ${BUCKET_NAME} || true;
+      aws --endpoint-url http://s3:9000 s3api put-bucket-policy --bucket ${BUCKET_NAME} --policy '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\",\"s3:ListBucket\"],\"Resource\":[\"arn:aws:s3:::${BUCKET_NAME}\",\"arn:aws:s3:::${BUCKET_NAME}/*\"]}]}';
+      exit 0;
+      "
+
+  redis:
+    image: redis:8-alpine
+    restart: always
+    ports:
+      - "5006:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  celery-worker:
+    build: ./rp-backend
+    env_file:
+      - .env.dev.test
+    command: uv run celery -A celery_app worker --loglevel=info --concurrency=6 --max-tasks-per-child=100 --soft-time-limit=95
+    restart: always
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+volumes:
+  postgres_data:
+  s3_data:
+  redis_data:

@@ -1,0 +1,21 @@
+{
+  "name": "rp-level-converter",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@next-sekai/sonolus-next-sekai-engine": "^1.9.1",
+    "hono": "^4.12.8",
+    "sonolus-core": "^7.4.1",
+    "usctool": "^0.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "tsx": "^4.7.1",
+    "typescript": "^5.8.3"
+  }
+}
