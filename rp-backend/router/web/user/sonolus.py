@@ -87,7 +87,7 @@ async def link_sonolus_callback(
             status_code = status.HTTP_403_FORBIDDEN
         )
     
-    if body.url != "/".join([HOST_URL, "api/sonolus/link/callback"]):
+    if body.url != "/".join([HOST_URL, f"api/sonolus/link/callback?token={token}"]):
         return JSONResponse(
             content = {"message": "認証リクエスト送信先が違います。"},
             status_code = status.HTTP_403_FORBIDDEN
