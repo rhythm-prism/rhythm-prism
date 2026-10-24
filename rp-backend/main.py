@@ -14,7 +14,7 @@ ICON_DATA = bytes()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db_model()
+    #await init_db_model()
 
     if USE_UVICORN == "1":
         await setup_item_resource()
