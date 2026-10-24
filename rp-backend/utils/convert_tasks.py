@@ -64,13 +64,14 @@ def upload_jacket(self, chart_id: str, jacket: bytes):
                 "/".join([chart_id, chart.jacket_hash])
             )
         
-        old_background_item = session.get(BackgroundItemDB, chart.background_item_id)
-        if old_background_item is not None:
-            delete_list.append(
-                "/".join([chart_id, old_background_item.image_hash])
-            )
-            session.delete(old_background_item)
-            session.flush()
+        if chart.background_item_id is not None:
+            old_background_item = session.get(BackgroundItemDB, chart.background_item_id)
+            if old_background_item is not None:
+                delete_list.append(
+                    "/".join([chart_id, old_background_item.image_hash])
+                )
+                session.delete(old_background_item)
+                session.flush()
             
         # 背景
         background_item_id = "-".join([SERVICE_PREFIX, generate_background_id()])
