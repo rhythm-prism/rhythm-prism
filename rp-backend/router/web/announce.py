@@ -54,7 +54,7 @@ async def get_announce(
     
     if announce_cache is not None:
         announce_list.extend(
-            AnnounceListAdapter.validate_json(announce_cache)
+            AnnounceListAdapter.validate_json(announce_cache, by_alias=True)
         )
     else:
         stmt = sql.select(PostItemDB)\
