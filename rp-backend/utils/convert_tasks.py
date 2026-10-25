@@ -29,12 +29,14 @@ def upload_jacket(self, chart_id: str, jacket: bytes):
     
     session = None
     delete_list = []
+    upload_list = []
     
     try:
         # 変換
         converted_jacket, background = converter.convert_jacket(jacket)
         
         # hashを計算する
+        original_jacket_hash =  hashlib.sha1(jacket).hexdigest()
         converted_jacket_hash = hashlib.sha1(converted_jacket.getvalue()).hexdigest()
         background_hash =       hashlib.sha1(background.getvalue()).hexdigest()
         
@@ -46,27 +48,28 @@ def upload_jacket(self, chart_id: str, jacket: bytes):
         converted_jacket_url = "/".join([S3_HOST, converted_jacket_key])
         background_url =       "/".join([S3_HOST, background_key])
         
-        # ファイルをアップロード
-        asyncio.run(
-            upload_s3([
-                UploadData(converted_jacket_key, converted_jacket.getvalue()),
-                UploadData(background_key, background.getvalue())
-            ])
-        )
-        
         session = SessionMakerSync()
         
         chart = session.get(ChartDB, chart_id)
         
+        is_same_jacket = chart.jacket_hash == converted_jacket_hash
+        is_same_background = False
+        
         # 既にジャケットと背景が存在し、更新を行う場合は更新前のデータを削除対象にする
-        if chart.jacket_hash is not None:
+        if (
+            chart.jacket_hash and
+            not is_same_jacket
+        ):
             delete_list.append(
                 "/".join([chart_id, chart.jacket_hash])
             )
         
         if chart.background_item_id is not None:
+            
             old_background_item = session.get(BackgroundItemDB, chart.background_item_id)
-            if old_background_item is not None:
+            is_same_background = old_background_item.image_hash == background_hash
+            
+            if not is_same_background:
                 delete_list.append(
                     "/".join([chart_id, old_background_item.image_hash])
                 )
@@ -74,29 +77,39 @@ def upload_jacket(self, chart_id: str, jacket: bytes):
                 session.flush()
             
         # 背景
-        background_item_id = "-".join([SERVICE_PREFIX, generate_background_id()])
-        background_item = BackgroundItemDB(
-            id = background_item_id,
-            version = SonolusItemVersion.BACKGROUND_ITEM,
-            title = chart.title,
-            subtitle = chart.composer,
-            author = "RhythmPrism",
-            thumbnail_url = converted_jacket_url,
-            thumbnail_hash = converted_jacket_hash,
-            data_url = sonolus_item_resource.BACKGROUND_DATA_URL,
-            data_hash = sonolus_item_resource.BACKGROUND_DATA_HASH,
-            image_url = background_url,
-            image_hash = background_hash,
-            configuration_url = sonolus_item_resource.BACKGROUND_CONFIG_URL,
-            configuration_hash = sonolus_item_resource.BACKGROUND_CONFIG_HASH
-        )
-        session.add(background_item)
+        if not is_same_background:
+            background_item_id = "-".join([SERVICE_PREFIX, generate_background_id()])
+            background_item = BackgroundItemDB(
+                id = background_item_id,
+                version = SonolusItemVersion.BACKGROUND_ITEM,
+                title = chart.title,
+                subtitle = chart.composer,
+                author = "RhythmPrism",
+                thumbnail_url = converted_jacket_url,
+                thumbnail_hash = converted_jacket_hash,
+                data_url = sonolus_item_resource.BACKGROUND_DATA_URL,
+                data_hash = sonolus_item_resource.BACKGROUND_DATA_HASH,
+                image_url = background_url,
+                image_hash = background_hash,
+                configuration_url = sonolus_item_resource.BACKGROUND_CONFIG_URL,
+                configuration_hash = sonolus_item_resource.BACKGROUND_CONFIG_HASH
+            )
+            chart.background_item_id = background_item_id
+            session.add(background_item)
         
         # Chartレコードを更新
-        chart.background_item_id = background_item_id
+        chart.original_jacket_hash = original_jacket_hash
         chart.jacket_hash = converted_jacket_hash
         chart.jacket_url = converted_jacket_url
         chart.conversion_status |= ChartConversionStatus.JACKET_COMPLETE
+        
+        # ファイルをアップロード
+        if not is_same_jacket:
+            upload_list.append(UploadData(converted_jacket_key, converted_jacket.getvalue()))
+        if not is_same_background:
+            upload_list.append(UploadData(background_key, background.getvalue()))
+            
+        asyncio.run(upload_s3(upload_list))
 
         session.commit()
         session.close()
@@ -119,12 +132,14 @@ def upload_bgm(self, chart_id: str, bgm: bytes, start_time: float = 15.0):
     
     session = None
     delete_list = []
+    upload_list = []
     
     try:
         # 変換
         converted_bgm, preview = converter.convert_bgm(bgm, start_time)
 
         # hashを計算する
+        original_bgm_hash = hashlib.sha1(bgm).hexdigest()
         converted_bgm_hash = hashlib.sha1(converted_bgm.getvalue()).hexdigest()
         preview_hash =       hashlib.sha1(preview.getvalue()).hexdigest()
         
@@ -135,36 +150,47 @@ def upload_bgm(self, chart_id: str, bgm: bytes, start_time: float = 15.0):
         # 各ファイルのURL
         converted_bgm_url = "/".join([S3_HOST, converted_bgm_key])
         preview_url =       "/".join([S3_HOST, preview_key])
-        
-        # ファイルをアップロード
-        asyncio.run(
-            upload_s3([
-                UploadData(converted_bgm_key, converted_bgm.getvalue()),
-                UploadData(preview_key, preview.getvalue())
-            ])
-        )
 
         session = SessionMakerSync()
         
         chart = session.get(ChartDB, chart_id)
         
-        # 既にbgm, previewが存在し、更新を行う場合は更新前のデータを削除対象にする
-        if chart.bgm_hash is not None:
+        is_same_bgm = chart.bgm_hash == converted_bgm_hash
+        is_same_preview = chart.preview_hash == preview_hash
+        
+        # 既にbgm, previewが存在し、更新を行う場合は更新前のファイルと一致するか確認し、
+        # 一致する場合は更新しない
+        if (
+            chart.bgm_hash and
+            not is_same_bgm
+        ):
             delete_list.append(
                 "/".join([chart_id, chart.bgm_hash])
             )
         
-        if chart.preview_hash is not None:
+        if (
+            chart.preview_hash and
+            not is_same_preview
+        ):
             delete_list.append(
                 "/".join([chart_id, chart.preview_hash])
             )
 
         # Chartレコードを更新
+        chart.original_bgm_hash = original_bgm_hash
         chart.bgm_url = converted_bgm_url
         chart.bgm_hash = converted_bgm_hash
         chart.preview_url = preview_url
         chart.preview_hash = preview_hash
         chart.conversion_status |= ChartConversionStatus.BGM_COMPLETE
+        
+        # ファイルをアップロード
+        if not is_same_bgm:
+            upload_list.append(UploadData(converted_bgm_key, converted_bgm.getvalue()))
+        if not is_same_preview:
+            upload_list.append(UploadData(preview_key, preview.getvalue()))
+        
+        asyncio.run(upload_s3(upload_list))
         
         session.commit()
         session.close()
@@ -187,6 +213,7 @@ def upload_chart(self, chart_id: str, original_chart: bytes):
     
     session = None
     delete_list = []
+    upload_list = []
     
     try:
         # 変換
@@ -196,7 +223,7 @@ def upload_chart(self, chart_id: str, original_chart: bytes):
         compressed_original_chart = zstd.compress(original_chart, level=3)
 
         # hashを計算する
-        original_chart_hash = hashlib.sha1(compressed_original_chart).hexdigest()
+        original_chart_hash = hashlib.sha1(original_chart).hexdigest()
         level_data_hash =     hashlib.sha1(level_data.getvalue()).hexdigest()
         
         # key
@@ -206,26 +233,28 @@ def upload_chart(self, chart_id: str, original_chart: bytes):
         # 各ファイルのURL
         original_chart_url = "/".join([S3_HOST, original_chart_key])
         level_data_url =     "/".join([S3_HOST, level_data_key])
-        
-        # ファイルをアップロード
-        asyncio.run(
-            upload_s3([
-                UploadData(original_chart_key, compressed_original_chart),
-                UploadData(level_data_key, level_data.getvalue())
-            ])
-        )
 
         session = SessionMakerSync()
         
         chart = session.get(ChartDB, chart_id)
         
-        # 既にchartが存在し、更新を行う場合は更新前のデータを削除対象にする
-        if chart.leveldata_hash is not None:
+        is_same_leveldata = chart.leveldata_hash == level_data_hash
+        is_same_original_chart = chart.original_chart_hash == original_chart_hash
+        
+        # 既にchartが存在し、更新を行う場合は更新前のファイルと一致するか確認し、
+        # 一致する場合は更新しない
+        if (
+            chart.leveldata_hash and
+            not is_same_leveldata
+        ):
             delete_list.append(
                 "/".join([chart_id, chart.leveldata_hash])
             )
             
-        if chart.original_chart_hash is not None:
+        if (
+            chart.original_chart_hash and
+            not is_same_original_chart
+        ):
             delete_list.append(
                 "/".join([chart_id, chart.original_chart_hash])
             )
@@ -236,8 +265,16 @@ def upload_chart(self, chart_id: str, original_chart: bytes):
         chart.leveldata_url = level_data_url
         chart.leveldata_hash = level_data_hash
         chart.chart_format = chart_format
-        chart.version = SonolusItemVersion.LEVEL_ITEM,
+        chart.version = SonolusItemVersion.LEVEL_ITEM
         chart.conversion_status |= ChartConversionStatus.CHART_COMPLETE
+        
+        # ファイルをアップロード
+        if not is_same_leveldata:
+            upload_list.append(UploadData(level_data_key, level_data.getvalue()))
+        if not is_same_original_chart:
+            upload_list.append(UploadData(original_chart_key, compressed_original_chart))
+        
+        asyncio.run(upload_s3(upload_list))
         
         session.commit()
         session.close()
@@ -270,17 +307,16 @@ def upload_post_thumbnail(self, post_id: str, thumbnail: bytes):
         converted_thumbnail_key = "/".join([post_id, converted_thumbnail_hash])
         converted_thumbnail_url = "/".join([S3_HOST, converted_thumbnail_key])
         
-        asyncio.run(
-            upload_s3([
-                UploadData(converted_thumbnail_key, converted_thumbnail.getvalue())
-            ])
-        )
-        
         session = SessionMakerSync()
         
         post = session.get(PostItemDB, post_id)
         
-        if post.thumbnail_hash is not None:
+        is_same_file = post.thumbnail_hash == converted_thumbnail_hash
+        
+        if (
+            post.thumbnail_hash and
+            not is_same_file
+        ):
             delete_list.append(
                 "/".join([post_id, post.thumbnail_hash])
             )
@@ -288,11 +324,21 @@ def upload_post_thumbnail(self, post_id: str, thumbnail: bytes):
         post.thumbnail_url = converted_thumbnail_url
         post.thumbnail_hash = converted_thumbnail_hash
         
+        if not is_same_file:
+            asyncio.run(
+                upload_s3([
+                    UploadData(converted_thumbnail_key, converted_thumbnail.getvalue())
+                ])
+            )
+        
         session.commit()
         session.close()
         session = None
         
-        if len(delete_list) != 0:
+        if (
+            len(delete_list) != 0 and
+            not is_same_file
+        ):
             asyncio.run(delete_s3(delete_list))
         
     except Exception as ex:
@@ -319,29 +365,38 @@ def upload_post_banner(self, post_id: str, banner: bytes):
         converted_banner_key = "/".join([post_id, converted_banner_hash])
         converted_banner_url = "/".join([S3_HOST, converted_banner_key])
         
-        asyncio.run(
-            upload_s3([
-                UploadData(converted_banner_key, converted_banner.getvalue())
-            ])
-        )
-        
         session = SessionMakerSync()
         
         post = session.get(PostItemDB, post_id)
         
-        if post.banner_hash is not None:
+        is_same_file = post.banner_hash == converted_banner_hash
+        
+        if (
+            post.banner_hash and
+            not is_same_file
+        ):
             delete_list.append(
                 "/".join([post_id, post.banner_hash])
             )
         
         post.banner_url = converted_banner_url
         post.banner_hash = converted_banner_hash
+
+        if not is_same_file:
+            asyncio.run(
+                upload_s3([
+                    UploadData(converted_banner_key, converted_banner.getvalue())
+                ])
+            )
         
         session.commit()
         session.close()
         session = None
         
-        if len(delete_list) != 0:
+        if (
+            len(delete_list) != 0 and 
+            not is_same_file
+        ):
             asyncio.run(delete_s3(delete_list))
         
     except Exception as ex:

@@ -301,7 +301,7 @@ async def edit_chart(
             raise RPException.FileSizeTooLarge()
         
         # 同じファイルかどうか
-        if chart.bgm_hash != hashlib.sha1(original_bgm).hexdigest():
+        if chart.original_bgm_hash != hashlib.sha1(original_bgm).hexdigest():
             should_upload_bgm = True
             
             # 処理ステータスをリセット
@@ -317,7 +317,7 @@ async def edit_chart(
             raise RPException.FileSizeTooLarge()
         
         # 同じファイルかどうか
-        if chart.jacket_hash != hashlib.sha1(original_jacket).hexdigest():
+        if chart.original_jacket_hash != hashlib.sha1(original_jacket).hexdigest():
             should_upload_jacket = True
             
             # 処理ステータスをリセット
