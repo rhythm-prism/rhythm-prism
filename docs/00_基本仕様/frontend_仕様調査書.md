@@ -14,7 +14,7 @@
 | 認証とセッション | Discord または Sonolus でログインし、Cookie セッションを復元・更新・終了する。 | [LoginModal.tsx](../../rp-frontend/src/components/LoginModal.tsx)、[auth.ts](../../rp-frontend/src/lib/auth.ts)、[http.ts](../../rp-frontend/src/lib/http.ts) |
 | 譜面投稿・編集・管理 | 譜面情報とファイルを送信し、投稿者等が情報やファイルを編集する。 | [SubmitChart.tsx](../../rp-frontend/src/components/SubmitChart.tsx)、[EditChart.tsx](../../rp-frontend/src/components/EditChart.tsx)、[api.ts](../../rp-frontend/src/lib/api.ts) |
 | プロフィール・自分の譜面 | プロフィール、公開譜面、本人向けの非公開譜面を表示・編集する。 | [UserProfile.tsx](../../rp-frontend/src/components/UserProfile.tsx)、[MyCharts.tsx](../../rp-frontend/src/components/MyCharts.tsx)、[EditProfile.tsx](../../rp-frontend/src/components/EditProfile.tsx) |
-| 制作者認定申請・審査 | 制作者申請状況の閲覧・申請、および認定制作者向け審査を行う。 | [CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterRequests.tsx](../../rp-frontend/src/components/CharterRequests.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx) |
+| 制作者認定申請・審査 | 制作者申請状況の閲覧・申請、認定制作者向け審査、およびモデレーター以上向け完了済み申請の閲覧を行う。 | [CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterRequests.tsx](../../rp-frontend/src/components/CharterRequests.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[CharterPastRequests.tsx](../../rp-frontend/src/components/CharterPastRequests.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx) |
 | 運営画面 | お知らせ管理、ユーザー管理、サーバー統計を表示・編集する。 | [AnnouncementList.tsx](../../rp-frontend/src/components/AnnouncementList.tsx)、[ModerationUsers.tsx](../../rp-frontend/src/components/ModerationUsers.tsx)、[ServerInfo.tsx](../../rp-frontend/src/components/ServerInfo.tsx) |
 | 規約・共通 UI | 利用規約画面、共通ヘッダー・フッター等を表示する。 | [Terms.tsx](../../rp-frontend/src/components/Terms.tsx)、[Header.tsx](../../rp-frontend/src/components/Header.tsx)、[Footer.tsx](../../rp-frontend/src/components/Footer.tsx) |
 
@@ -52,7 +52,7 @@
 
 ### 2.6 制作者認定申請と審査
 
-通常権限のログインユーザーには申請画面を表示し、選択した自身の譜面を使って申請する。申請者は自身の申請一覧と申請ごとの審査状態・理由を確認できる。認定制作者以上の画面では未完了申請一覧を表示し、申請に対して承認または却下を送る。フロントエンドはこれらのページをルートの権限判定で制御し、申請状態・審査権限の最終判定はバックエンドが行う。参照: [App.tsx](../../rp-frontend/src/App.tsx)、[CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[api.ts](../../rp-frontend/src/lib/api.ts)
+通常権限のログインユーザーには申請画面を表示し、選択した自身の譜面を使って申請する。申請者は自身の申請一覧と申請ごとの審査状態・理由を確認できる。認定制作者以上の画面では未完了申請一覧を表示し、申請詳細から承認または却下を選ぶと確認ダイアログで操作内容を確認してから送信する。モデレーター以上はメニューの「過去の申請」から全体の完了済み申請一覧を開き、一覧から各申請の詳細・審査履歴を確認できる。フロントエンドはページ導線を権限に応じて切り替え、申請状態・審査権限の最終判定はバックエンドが行う。参照: [App.tsx](../../rp-frontend/src/App.tsx)、[Header.tsx](../../rp-frontend/src/components/Header.tsx)、[CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[CharterPastRequests.tsx](../../rp-frontend/src/components/CharterPastRequests.tsx)、[api.ts](../../rp-frontend/src/lib/api.ts)
 
 ### 2.7 運営画面、お知らせ、規約
 

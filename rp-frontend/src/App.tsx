@@ -23,6 +23,7 @@ import EditAnnouncement from "./components/EditAnnouncement";
 import SearchPage from "./components/SearchPage";
 import MyCharts from "./components/MyCharts";
 import CharterRequests from "./components/CharterRequests";
+import CharterPastRequests from "./components/CharterPastRequests";
 import CharterPendingRequests from "./components/CharterPendingRequests";
 import CharterApply from "./components/CharterApply";
 import CharterStatus from "./components/CharterStatus";
@@ -414,12 +415,19 @@ function AppShell() {
             path="/auth/charter/requests"
             element={
               <RequireAuth onDenied={() => setLoginOpen(true)}>
-                <CharterRequests
-                  userId={user?.id ?? ""}
-                  onBack={() => navigate(-1)}
-                  onApplyClick={goCharterApply}
-                  onSelectRequest={goCharterStatus}
-                />
+                {(user?.permission ?? PERMISSION.NORMAL) >= PERMISSION.MODERATOR ? (
+                  <CharterPastRequests
+                    onBack={() => navigate(-1)}
+                    onSelectRequest={goCharterStatus}
+                  />
+                ) : (
+                  <CharterRequests
+                    userId={user?.id ?? ""}
+                    onBack={() => navigate(-1)}
+                    onApplyClick={goCharterApply}
+                    onSelectRequest={goCharterStatus}
+                  />
+                )}
               </RequireAuth>
             }
           />

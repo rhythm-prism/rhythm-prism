@@ -123,6 +123,22 @@ export async function fetchPendingCharterAuthRequests(
 }
 
 /**
+ * Calls `GET /api/auth/charter/requests/completed` (CharterAuthListResponse).
+ * Returns every completed application, newest first. MODERATOR+ only.
+ */
+export async function fetchCompletedCharterAuthRequests(
+  signal?: AbortSignal,
+): Promise<CharterAuthRequestInfo[]> {
+  const res = await authFetch("/api/auth/charter/requests/completed", {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+  const body = (await res.json()) as CharterAuthListResponse;
+  return body.charterAuthRequests;
+}
+
+/**
  * Applies to become a charter via `POST /api/auth/charter/request` (multipart, JSON `data`
  * part). `chart_id` is snake_case on the wire (CharterAuthRequest has no alias). NORMAL
  * users only. Returns the new application's id (for navigating straight to its status page).

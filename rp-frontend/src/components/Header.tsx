@@ -168,7 +168,11 @@ function UserMenu({
           <MenuItem icon={<ProfileIcon />} label="プロフィール" onClick={select(onProfileClick)} />
           <MenuItem icon={<UploadIcon />} label="譜面投稿" onClick={select(onSubmitClick)} />
           <MenuItem icon={<ChartsIcon />} label="投稿した譜面" onClick={select(onMineClick)} />
-          <MenuItem icon={<CharterIcon />} label="作者申請" onClick={select(onCharterClick)} />
+          <MenuItem
+            icon={<CharterIcon />}
+            label={(user.permission ?? 0) >= PERMISSION.MODERATOR ? "過去の申請" : "作者申請"}
+            onClick={select(onCharterClick)}
+          />
           {(user.permission ?? 0) >= PERMISSION.AUTHORIZED_CHARTER && (
             <MenuItem icon={<PendingIcon />} label="申請待ち一覧" onClick={select(onCharterPendingClick)} />
           )}

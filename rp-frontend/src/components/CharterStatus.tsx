@@ -296,23 +296,27 @@ function ChartSummary({
 }
 
 /** Approve/reject panel for a reviewer who hasn't decided on this application yet. */
-function ReviewPanel({ requestId, onDone }: { requestId: string; onDone: () => void }) {
+function ReviewPanel({ request, onDone }: { request: CharterAuthRequestInfo; onDone: () => void }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<number | null>(null);
 
   const decide = async (status: number) => {
     if (submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      await postCharterAuthApproval(requestId, status, reason.trim() || undefined);
+      await postCharterAuthApproval(request.id, status, reason.trim() || undefined);
+      setConfirmation(null);
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "送信に失敗しました");
       setSubmitting(false);
     }
   };
+
+  const approving = confirmation === CHARTER_AUTH_APPROVAL.APPROVE;
 
   return (
     <div className="space-y-3 rounded-xl border border-prism-2/40 bg-prism-2/5 p-4">
@@ -327,20 +331,74 @@ function ReviewPanel({ requestId, onDone }: { requestId: string; onDone: () => v
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">
         <button
-          onClick={() => decide(CHARTER_AUTH_APPROVAL.REJECT)}
+          onClick={() => setConfirmation(CHARTER_AUTH_APPROVAL.REJECT)}
           disabled={submitting}
           className="rounded-lg border border-red-500/50 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
           却下する
         </button>
         <button
-          onClick={() => decide(CHARTER_AUTH_APPROVAL.APPROVE)}
+          onClick={() => setConfirmation(CHARTER_AUTH_APPROVAL.APPROVE)}
           disabled={submitting}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "送信中…" : "承認する"}
         </button>
       </div>
+
+      {confirmation !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => !submitting && setConfirmation(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="charter-review-confirmation-title"
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="charter-review-confirmation-title" className="text-lg font-bold">
+              この操作で間違いありませんか？
+            </h2>
+            <p className={`mt-4 text-3xl font-extrabold ${approving ? "text-emerald-400" : "text-red-400"}`}>
+              {approving ? "承認" : "却下"}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              次の申請について、この内容で審査を確定します。
+            </p>
+            <div className="mt-4 space-y-1 rounded-xl bg-bg/60 p-3 text-left text-sm">
+              <p className="break-words">
+                <span className="text-muted">申請者: </span>
+                {request.requestUser.name}
+              </p>
+              <p className="break-words">
+                <span className="text-muted">譜面: </span>
+                {request.chart.title}
+              </p>
+            </div>
+            {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmation(null)}
+                disabled={submitting}
+                className="rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-text disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => void decide(confirmation)}
+                disabled={submitting}
+                className="rounded-xl border border-red-500/50 px-5 py-2.5 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "送信中…" : approving ? "承認を確定" : "却下を確定"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -450,7 +508,7 @@ export default function CharterStatus({
               <Timeline request={request} />
             </div>
 
-            {canReview && <ReviewPanel requestId={request.id} onDone={reload} />}
+            {canReview && <ReviewPanel request={request} onDone={reload} />}
             {!request.isClosed && isReviewer && !isOwner && alreadyReviewed && (
               <p className="text-center text-sm text-muted">この申請はすでに審査済みです。</p>
             )}

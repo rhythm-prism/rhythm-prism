@@ -132,6 +132,46 @@ async def get_auth_charter_request_pending(
         ]
     )
 
+@router.get("/auth/charter/requests/completed", response_model=CharterAuthListResponse)
+async def get_auth_charter_request_completed(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(create_session)
+):
+    """
+    完了済みの作者承認リクエストを返すエンドポイント。
+    GET /api/auth/charter/requests/completed
+    """
+
+    user = await session.get(UserDB, user_id)
+
+    if user is None:
+        raise RPException.UserNotFound()
+    elif user.permission < UserPermission.NORMAL:
+        raise RPException.UserBanned()
+    elif user.permission < UserPermission.MODERATOR:
+        raise RPException.NoPermission()
+
+    stmt = sql.select(CharterAuthRequestDB)\
+              .where(CharterAuthRequestDB.is_closed.is_(True))\
+              .options(
+                  selectinload(CharterAuthRequestDB.approvals)\
+                  .joinedload(CharterAuthApprovalDB.reviewer),
+
+                  joinedload(CharterAuthRequestDB.request_user),
+
+                  joinedload(CharterAuthRequestDB.chart)
+              )\
+              .order_by(CharterAuthRequestDB.created_at.desc())
+
+    auth_requests = (await session.execute(stmt)).scalars().all()
+
+    return CharterAuthListResponse(
+        charterAuthRequests=[
+            _to_charter_auth_state_response(req)
+            for req in auth_requests
+        ]
+    )
+
 @router.get("/auth/charter/requests", response_model=CharterAuthListResponse)
 async def get_auth_charter_request(
     target_user_id: str,
