@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useAuth } from "../auth/context";
 import { useCharterAuthRequest } from "../hooks/useCharterAuthRequest";
-import { postCharterAuthApproval } from "../lib/api";
+import { deleteCharterAuthApproval, postCharterAuthApproval } from "../lib/api";
 import { CHARTER_AUTH_APPROVAL, CHARTER_AUTH_REQUIRED, DIFFICULTY_BY_ID, PERMISSION } from "../lib/constants";
 import { formatDateTime, summarizeCharterAuth } from "../lib/charterAuth";
 import type { CharterAuthStatus } from "../lib/charterAuth";
 import { jacketGradient } from "../lib/format";
-import type { CharterAuthRequestInfo, CharterAuthUser } from "../types/charterAuth";
+import type { CharterAuthApproval, CharterAuthRequestInfo, CharterAuthUser } from "../types/charterAuth";
 
 interface Props {
   requestId: string;
@@ -205,50 +205,127 @@ function TimelineItem({ dot, children }: { dot: ReactNode; children: ReactNode }
 }
 
 /** Tracking-style history: the application itself, followed by the reviewers' decisions. */
-function Timeline({ request }: { request: CharterAuthRequestInfo }) {
+function Timeline({ request, onWithdraw }: { request: CharterAuthRequestInfo; onWithdraw: () => void }) {
   // Oldest first (application at the top), newest at the bottom.
   const approvals = [...request.approvals].sort((a, b) => a.createdAt - b.createdAt);
+  const { user } = useAuth();
+  const [confirmation, setConfirmation] = useState<CharterAuthApproval | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const withdraw = async () => {
+    if (!confirmation || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteCharterAuthApproval(confirmation.id);
+      setConfirmation(null);
+      onWithdraw();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "取り消しに失敗しました");
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <ol className="relative ml-3 space-y-5 border-l border-border pl-6">
-      <TimelineItem dot={<span className="h-3 w-3 rounded-full bg-prism-2" />}>
-        <p className="text-sm font-semibold">申請を受け付けました</p>
-        <p className="text-xs text-muted">{formatDateTime(request.createdAt)}</p>
-      </TimelineItem>
-
-      {approvals.length === 0 && (
-        <TimelineItem dot={<span className="h-3 w-3 animate-pulse rounded-full bg-prism-4" />}>
-          <p className="text-sm font-semibold">審査待ち</p>
-          <p className="text-xs text-muted">まだ審査は行われていません。</p>
+    <>
+      <ol className="relative ml-3 space-y-5 border-l border-border pl-6">
+        <TimelineItem dot={<span className="h-3 w-3 rounded-full bg-prism-2" />}>
+          <p className="text-sm font-semibold">申請を受け付けました</p>
+          <p className="text-xs text-muted">{formatDateTime(request.createdAt)}</p>
         </TimelineItem>
-      )}
 
-      {approvals.map((a, i) => {
-        const approve = a.status === CHARTER_AUTH_APPROVAL.APPROVE;
-        return (
-          <TimelineItem
-            key={`${a.reviewer.id}-${i}`}
-            dot={<span className={`h-3 w-3 rounded-full ${approve ? "bg-emerald-400" : "bg-red-400"}`} />}
-          >
-            <div className="flex items-center gap-2.5">
-              <Avatar user={a.reviewer} />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{a.reviewer.name}</p>
-                <p className={`text-xs font-semibold ${approve ? "text-emerald-300" : "text-red-300"}`}>
-                  {approve ? "承認しました" : "却下しました"}
-                  <span className="ml-2 font-normal text-muted">{formatDateTime(a.createdAt)}</span>
-                </p>
-              </div>
-            </div>
-            {a.reason && (
-              <p className="mt-2 whitespace-pre-wrap rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
-                {a.reason}
-              </p>
-            )}
+        {approvals.length === 0 && (
+          <TimelineItem dot={<span className="h-3 w-3 animate-pulse rounded-full bg-prism-4" />}>
+            <p className="text-sm font-semibold">審査待ち</p>
+            <p className="text-xs text-muted">まだ審査は行われていません。</p>
           </TimelineItem>
-        );
-      })}
-    </ol>
+        )}
+
+        {approvals.map((a) => {
+          const approve = a.status === CHARTER_AUTH_APPROVAL.APPROVE;
+          const canWithdraw = !request.isClosed && a.reviewer.id === user?.id;
+          return (
+            <TimelineItem
+              key={a.id}
+              dot={<span className={`h-3 w-3 rounded-full ${approve ? "bg-emerald-400" : "bg-red-400"}`} />}
+            >
+              <div className="flex items-center gap-2.5">
+                <Avatar user={a.reviewer} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{a.reviewer.name}</p>
+                  <p className={`text-xs font-semibold ${approve ? "text-emerald-300" : "text-red-300"}`}>
+                    {approve ? "承認しました" : "却下しました"}
+                    <span className="ml-2 font-normal text-muted">{formatDateTime(a.createdAt)}</span>
+                  </p>
+                </div>
+                {canWithdraw && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setConfirmation(a);
+                    }}
+                    className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-red-500/50 hover:text-red-300"
+                  >
+                    取り消す
+                  </button>
+                )}
+              </div>
+              {a.reason && (
+                <p className="mt-2 whitespace-pre-wrap rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
+                  {a.reason}
+                </p>
+              )}
+            </TimelineItem>
+          );
+        })}
+      </ol>
+
+      {confirmation && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => !submitting && setConfirmation(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="charter-approval-withdraw-title"
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="charter-approval-withdraw-title" className="text-lg font-bold">
+              審査操作を取り消しますか？
+            </h2>
+            <p className={`mt-4 text-3xl font-extrabold ${confirmation.status === CHARTER_AUTH_APPROVAL.APPROVE ? "text-emerald-400" : "text-red-400"}`}>
+              {confirmation.status === CHARTER_AUTH_APPROVAL.APPROVE ? "承認" : "却下"}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              この審査結果を削除します。この操作は取り消せません。
+            </p>
+            {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmation(null)}
+                disabled={submitting}
+                className="rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-text disabled:opacity-50"
+              >
+                戻る
+              </button>
+              <button
+                type="button"
+                onClick={() => void withdraw()}
+                disabled={submitting}
+                className="rounded-xl border border-red-500/50 px-5 py-2.5 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "取り消し中…" : "取り消す"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -505,7 +582,7 @@ export default function CharterStatus({
 
             <div className="space-y-3">
               <h3 className="text-sm font-bold">審査履歴</h3>
-              <Timeline request={request} />
+              <Timeline request={request} onWithdraw={reload} />
             </div>
 
             {canReview && <ReviewPanel request={request} onDone={reload} />}

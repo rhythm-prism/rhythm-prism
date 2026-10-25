@@ -196,6 +196,18 @@ export async function postCharterAuthApproval(
 }
 
 /**
+ * Deletes the current user's decision via `DELETE /api/auth/charter/approval`.
+ * The decision must belong to the current user and its request must still be open.
+ */
+export async function deleteCharterAuthApproval(approvalId: string, signal?: AbortSignal): Promise<void> {
+  const res = await authFetch(`/api/auth/charter/approval?approval_id=${encodeURIComponent(approvalId)}`, {
+    method: "DELETE",
+    signal,
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+}
+
+/**
  * Edits a user via `PUT /api/user?target_user_id=...` (multipart). `data` carries
  * the changed fields; `iconFile` optionally replaces the avatar (processed
  * server-side in the background). Requires the session cookie.

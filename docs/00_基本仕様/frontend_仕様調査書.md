@@ -52,7 +52,7 @@
 
 ### 2.6 制作者認定申請と審査
 
-通常権限のログインユーザーには申請画面を表示し、選択した自身の譜面を使って申請する。申請者は自身の申請一覧と申請ごとの審査状態・理由を確認できる。認定制作者以上の画面では未完了申請一覧を表示し、申請詳細から承認または却下を選ぶと確認ダイアログで操作内容を確認してから送信する。モデレーター以上はメニューの「過去の申請」から全体の完了済み申請一覧を開き、一覧から各申請の詳細・審査履歴を確認できる。フロントエンドはページ導線を権限に応じて切り替え、申請状態・審査権限の最終判定はバックエンドが行う。参照: [App.tsx](../../rp-frontend/src/App.tsx)、[Header.tsx](../../rp-frontend/src/components/Header.tsx)、[CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[CharterPastRequests.tsx](../../rp-frontend/src/components/CharterPastRequests.tsx)、[api.ts](../../rp-frontend/src/lib/api.ts)
+通常権限のログインユーザーには申請画面を表示し、選択した自身の譜面を使って申請する。申請者は自身の申請一覧と申請ごとの審査状態・理由を確認できる。認定制作者以上の画面では未完了申請一覧を表示し、申請詳細から承認または却下を選ぶと確認ダイアログで操作内容を確認してから送信する。申請が未完了であれば、審査者本人は自身の判断履歴から取り消しを選び、確認後に削除できる。モデレーター以上はメニューの「過去の申請」から全体の完了済み申請一覧を開き、一覧から各申請の詳細・審査履歴を確認できる。フロントエンドはページ導線を権限に応じて切り替え、申請状態・審査権限の最終判定はバックエンドが行う。参照: [App.tsx](../../rp-frontend/src/App.tsx)、[Header.tsx](../../rp-frontend/src/components/Header.tsx)、[CharterApply.tsx](../../rp-frontend/src/components/CharterApply.tsx)、[CharterStatus.tsx](../../rp-frontend/src/components/CharterStatus.tsx)、[CharterPendingRequests.tsx](../../rp-frontend/src/components/CharterPendingRequests.tsx)、[CharterPastRequests.tsx](../../rp-frontend/src/components/CharterPastRequests.tsx)、[api.ts](../../rp-frontend/src/lib/api.ts)
 
 ### 2.7 運営画面、お知らせ、規約
 

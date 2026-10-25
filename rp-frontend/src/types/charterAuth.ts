@@ -9,6 +9,7 @@ export interface CharterAuthUser {
 
 /** One reviewer's decision (CharterAuthApprovalResponse). `status`: 0 = reject, 1 = approve. */
 export interface CharterAuthApproval {
+  id: string;
   reviewer: CharterAuthUser;
   status: number;
   reason: string | null;

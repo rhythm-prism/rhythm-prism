@@ -71,7 +71,7 @@ Sonolus ログインは `POST /api/sonolus/login` で Redis に期限付きの�
 
 通常権限のユーザーは自分の譜面を対象に申請でき、未完了申請がある場合は新しい申請を作成できない。申請後、通知用 URL を含む Discord 通知がバックグラウンド処理に渡される。本人は自分の申請を一覧・詳細で確認でき、認定制作者以上は全体の未完了申請を確認できる。モデレーター以上は完了済み申請を全体一覧で確認できる。完了済み一覧は `GET /api/auth/charter/requests/completed` が返し、モデレーター未満のアクセスは拒否する。
 
-認定制作者以上は各申請に一度だけ承認または却下を登録できる。却下2件で申請を終了し、承認2件で申請者の権限を制作者に変更して終了する。承認時には Discord の制作者ロールも付与し、ロール付与が HTTP 204 以外の場合は DB 更新をロールバックしてサーバーエラーにする。完了済み申請一覧は作成日時の降順で返す。参照: [auth_charter.py](../../rp-backend/router/web/user/auth_charter.py)、[const/user.py](../../rp-backend/const/user.py)
+認定制作者以上は各申請に一度だけ承認または却下を登録できる。却下2件で申請を終了し、承認2件で申請者の権限を制作者に変更して終了する。承認時には Discord の制作者ロールも付与し、ロール付与が HTTP 204 以外の場合は DB 更新をロールバックしてサーバーエラーにする。完了済み申請一覧は作成日時の降順で返す。審査者本人は申請が未完了の場合に限り、自身の審査結果を `DELETE /api/auth/charter/approval?approval_id=...` で取り消せる。他者の審査結果、または完了済み申請の審査結果は削除できない。参照: [auth_charter.py](../../rp-backend/router/web/user/auth_charter.py)、[const/user.py](../../rp-backend/const/user.py)
 
 ### 2.7 Sonolus サーバー API
 
