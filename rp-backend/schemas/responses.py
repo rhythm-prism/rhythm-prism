@@ -152,6 +152,7 @@ class CharterAuthApprovalResponse(BaseModel):
     承認情報
     """
 
+    id: str
     reviewer: UserDataSimpleInfoResponse
     status: int
     reason: Optional[str]

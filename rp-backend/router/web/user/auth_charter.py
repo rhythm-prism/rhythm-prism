@@ -76,6 +76,7 @@ def _to_charter_auth_state_response(req: CharterAuthRequestDB) -> CharterAuthSta
         createdAt=req.created_at,
         approvals=[
             CharterAuthApprovalResponse(
+                id=approval.id,
                 reviewer=UserDataSimpleInfoResponse(
                     id=approval.reviewer.id,
                     name=approval.reviewer.name,
@@ -432,4 +433,47 @@ async def post_auth_charter_approval(
 
     await session.commit()
 
+    return
+
+@router.delete("/auth/charter/approval")
+async def delete_auth_charter_approval(
+    approval_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(create_session)
+):
+    """
+    承認を削除するエンドポイント。
+    誤って承認/却下してしまった場合に使用する。
+    ただし、既に規定人数以上が承認/却下を行ってしまった場合は削除できない。
+    
+    DELETE /api/auth/charter/approval
+    """
+    
+    # 操作したユーザーを取得
+    user = await session.get(UserDB, user_id)
+    
+    if not user:
+        raise RPException.UserNotFound()
+    elif user.permission < UserPermission.NORMAL:
+        raise RPException.NoPermission()
+    
+    # 承認レコードを取得
+    approval = await session.get(
+        CharterAuthApprovalDB, approval_id,
+        options=[
+            joinedload(CharterAuthApprovalDB.request)
+        ]
+    )
+    
+    if not approval:
+        raise RPException.CharterAuthApprovalNotFound()
+    elif approval.reviewer_id != user_id:
+        raise RPException.NoPermission()
+    elif approval.request.is_closed:
+        raise RPException.NoPermission()
+    
+    await session.delete(approval)
+    
+    await session.commit()
+    
     return

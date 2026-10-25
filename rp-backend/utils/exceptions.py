@@ -216,6 +216,19 @@ class RPException:
                 detail =      detail,
                 headers =     headers
             )
+            
+    class CharterAuthApprovalNotFound(HTTPException):
+        def __init__(
+            self,
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail: str = "承認レコードが見つかりませんでした。", 
+            headers =     None
+        ):
+            super().__init__(
+                status_code = status_code,
+                detail =      detail,
+                headers =     headers
+            )
 
     class FileSizeTooLarge(HTTPException):
         def __init__(
