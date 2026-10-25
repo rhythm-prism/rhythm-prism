@@ -314,8 +314,18 @@ function convertSlideNote(
                 segment.headConnection,
                 segment.tailConnection,
             )
-            setValueData(attach.entity, "lane", interpolated.lane)
-            setValueData(attach.entity, "size", interpolated.size)
+            const attachConnection = attach.connection as USCSlideAttachConnectionWithPosition
+            const zeroDuration = segment.headConnection.beat === segment.tailConnection.beat
+            setValueData(
+                attach.entity,
+                "lane",
+                zeroDuration && attachConnection.lane !== undefined ? attachConnection.lane : interpolated.lane,
+            )
+            setValueData(
+                attach.entity,
+                "size",
+                zeroDuration && attachConnection.size !== undefined ? attachConnection.size : interpolated.size,
+            )
             attach.entity.data.push(
                 refData("attachHead", attachHeadRef),
                 refData("attachTail", attachTailRef),
@@ -672,7 +682,8 @@ function interpolateSlideConnection(
         throw new Error("Unexpected attach connection in slide segment")
     }
 
-    const progress = (beat - headConnection.beat) / (tailConnection.beat - headConnection.beat)
+    const beatRange = tailConnection.beat - headConnection.beat
+    const progress = beatRange === 0 ? 0 : (beat - headConnection.beat) / beatRange
     const easedProgress = easeProgress(progress, getRawSlideConnectionEase(headConnection))
 
     return {
