@@ -85,7 +85,7 @@ async def get_level_list(ctx, req: dict):
         base_stmt = base_stmt.where(ChartDB.author.icontains(author_name))
         
     # ハンドルから検索
-    handle = req.get("handle")
+    handle = req.get("author_handle")
     if handle is not None:
         count_stmt = count_stmt.where(
             ChartDB.author_user.has(UserDB.sonolus_handle == handle)
