@@ -10,6 +10,7 @@ import {
   GENRES,
   MAX_COLLABORATORS,
   MAX_TAGS,
+  PERMISSION,
   PUBLISH_STATUS,
   R18_ON,
   R18_SAFE,
@@ -19,20 +20,9 @@ import FileDropField from "./FileDropField";
 import AudioPreviewEditor from "./AudioPreviewEditor";
 import RatingInput from "./RatingInput";
 import CollaboratorPicker from "./CollaboratorPicker";
-
-// 開発都合で「タグ」セクションを一時非表示にする場合はfalseにする（合作は常時表示）。
-const SHOW_TAGS = false;
-
-// A small built-in tag set; replace with `GET /api/chart/tag` once available.
-const SAMPLE_TAGS = [
-  { id: 1, title: "おすすめ" },
-  { id: 2, title: "高難易度" },
-  { id: 3, title: "合作" },
-  { id: 5, title: "定番" },
-  { id: 8, title: "初心者向け" },
-  { id: 9, title: "ゲーム音楽" },
-  { id: 10, title: "話題" },
-];
+import ChartTagPicker from "./ChartTagPicker";
+import { useAuth } from "../auth/context";
+import { useChartTags } from "../hooks/useChartTags";
 
 interface FormState {
   title: string;
@@ -114,6 +104,9 @@ interface Props {
 }
 
 export default function SubmitChart({ onBack, onPosted, defaultDisplayName = "" }: Props) {
+  const { user } = useAuth();
+  const { tags, loading: tagsLoading, error: tagsError, reload: reloadTags } = useChartTags();
+  const canEditTags = (user?.permission ?? PERMISSION.NORMAL) > PERMISSION.NORMAL;
   const [form, setForm] = useState<FormState>(() => makeInitial(defaultDisplayName));
   const [chartFile, setChartFile] = useState<File | null>(null);
   const [bgmFile, setBgmFile] = useState<File | null>(null);
@@ -125,16 +118,6 @@ export default function SubmitChart({ onBack, onPosted, defaultDisplayName = "" 
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }));
-
-  const toggleTag = (id: number) =>
-    setForm((p) => ({
-      ...p,
-      tags: p.tags.includes(id)
-        ? p.tags.filter((t) => t !== id)
-        : p.tags.length < MAX_TAGS
-          ? [...p.tags, id]
-          : p.tags,
-    }));
 
   // Client-side validation mirroring ChartPostRequest (schemas/requests.py).
   function validate(): string[] {
@@ -153,7 +136,7 @@ export default function SubmitChart({ onBack, onPosted, defaultDisplayName = "" 
     }
     if (form.description.length > 200) e.push("説明は200文字以下にしてください");
     if (form.rating < 0 || form.rating > RATING_MAX) e.push("レベルは0〜50で指定してください");
-    if (form.tags.length > MAX_TAGS) e.push("タグは4個以内にしてください");
+    if (canEditTags && form.tags.length > MAX_TAGS) e.push("タグは4個以内にしてください");
     if (form.collaborators.length > MAX_COLLABORATORS)
       e.push("合作者は20人以内にしてください");
     if (!chartFile) e.push("譜面ファイルを選択してください");
@@ -187,7 +170,7 @@ export default function SubmitChart({ onBack, onPosted, defaultDisplayName = "" 
       scheduledAt: null,
       r18: form.r18 ? R18_ON : R18_SAFE,
       collaborators: form.collaborators.map((u) => u.id),
-      tags: form.tags,
+      tags: canEditTags ? form.tags : [],
       chartFilePublishStatus: form.chartFilePublic ? CHART_FILE_PUBLIC : CHART_FILE_PRIVATE,
       startTime: form.startTime,
     };
@@ -390,35 +373,17 @@ export default function SubmitChart({ onBack, onPosted, defaultDisplayName = "" 
         />
       </Card>
 
-      <Card title={SHOW_TAGS ? "タグ・合作" : "合作"}>
-        {SHOW_TAGS && (
-          <Field label={`タグ（最大${MAX_TAGS}個・${form.tags.length}個選択中）`}>
-            <div className="flex flex-wrap gap-2">
-              {SAMPLE_TAGS.map((t) => {
-                const active = form.tags.includes(t.id);
-                const disabled = !active && form.tags.length >= MAX_TAGS;
-                return (
-                  <button
-                    type="button"
-                    key={t.id}
-                    onClick={() => toggleTag(t.id)}
-                    disabled={disabled}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-                      active
-                        ? "border-prism-2 bg-prism-2/20 text-prism-2"
-                        : disabled
-                          ? "cursor-not-allowed border-border/50 text-muted/40"
-                          : "border-border text-muted hover:text-text"
-                    }`}
-                  >
-                    #{t.title}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
+      <Card title={canEditTags ? "タグ・合作" : "合作"}>
+        {canEditTags && (
+          <ChartTagPicker
+            tags={tags}
+            selectedIds={form.tags}
+            loading={tagsLoading}
+            error={tagsError}
+            onChange={(selectedIds) => set("tags", selectedIds)}
+            onRetry={reloadTags}
+          />
         )}
-
         <Field label={`合作ユーザー（最大${MAX_COLLABORATORS}人・${form.collaborators.length}人選択中）`}>
           <CollaboratorPicker
             value={form.collaborators}
