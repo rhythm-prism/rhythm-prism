@@ -106,7 +106,17 @@ async def get_chart(
             url = chart.jacket_url
         ),
         events = [],
-        tags = [],
+        tags = [
+            ChartTagResponse(
+                id=t.tag_id,
+                title=t.tag_master.title,
+                icon=t.tag_master.icon,
+                createdAt=t.created_at,
+                updatedAt=t.tag_master.updated_at,
+                createdUserId=t.tag_master.created_user_id,
+            )
+            for t in chart.tags
+        ],
         authorUser = UserDataSimpleInfoResponse(
             id = chart.author_user.id,
             name = chart.author_user.name,

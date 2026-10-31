@@ -166,6 +166,21 @@ export default function ChartCard({
           </div>
         )}
 
+        {chart.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1" aria-label="タグ">
+            {chart.tags.map((tag) => (
+              <span
+                key={tag.id}
+                className={`max-w-full truncate rounded-full border border-border bg-surface-2/70 font-medium text-muted ${
+                  size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+                }`}
+              >
+                #{tag.title}
+              </span>
+            ))}
+          </div>
+        )}
+
         {size === "md" && (
           <div className="flex items-center justify-between border-t border-border/60 pt-2 text-xs text-muted">
             <span className="flex items-center gap-1 text-prism-3">
