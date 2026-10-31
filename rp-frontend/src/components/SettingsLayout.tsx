@@ -22,6 +22,15 @@ function ModerationIcon() {
   );
 }
 
+function TagIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M20 13 13 20a2 2 0 0 1-3 0l-7-7V3h10l7 7a2 2 0 0 1 0 3Z" strokeLinejoin="round" />
+      <circle cx="7.5" cy="7.5" r="1" />
+    </svg>
+  );
+}
+
 function ServerIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -41,6 +50,7 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { to: "/announcements", label: "お知らせ管理", icon: AnnouncementIcon },
   { to: "/moderation/users", label: "ユーザー管理", icon: ModerationIcon },
+  { to: "/moderation/tags", label: "タグの作成", icon: TagIcon },
   { to: "/moderation/server", label: "サーバー情報", icon: ServerIcon },
 ];
 

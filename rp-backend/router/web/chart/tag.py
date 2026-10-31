@@ -68,7 +68,7 @@ async def delete_chart_tag(
     session: AsyncSession = Depends(create_session)   
 ):
     """
-    譜面タグをDBに追加する
+    譜面タグをDBから削除する
     DELETE /api/chart/tag
     """
     

@@ -31,6 +31,7 @@ import EditProfile from "./components/EditProfile";
 import UserProfile from "./components/UserProfile";
 import SettingsLayout from "./components/SettingsLayout";
 import ModerationUsers from "./components/ModerationUsers";
+import CreateChartTag from "./components/CreateChartTag";
 import ServerInfo from "./components/ServerInfo";
 import Terms from "./components/Terms";
 import LoginModal from "./components/LoginModal";
@@ -445,7 +446,7 @@ function AppShell() {
             }
           />
 
-          {/* お知らせ管理・ユーザー管理（運営管理）は左サイドバー付きの共通レイアウトにまとめる。 */}
+          {/* 運営管理は左サイドバー付きの共通レイアウトにまとめる。 */}
           <Route element={<SettingsLayout />}>
             <Route
               path="/announcements"
@@ -464,6 +465,14 @@ function AppShell() {
               element={
                 <RequireModerator>
                   <ModerationUsersPage onSelectUser={goModerationUserEdit} />
+                </RequireModerator>
+              }
+            />
+            <Route
+              path="/moderation/tags"
+              element={
+                <RequireModerator>
+                  <CreateChartTag onBack={() => navigate(-1)} />
                 </RequireModerator>
               }
             />

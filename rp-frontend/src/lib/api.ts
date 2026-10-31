@@ -290,6 +290,26 @@ export async function fetchChartTags(signal?: AbortSignal): Promise<ChartTag[]> 
   return (await res.json()) as ChartTag[];
 }
 
+/** Creates a tag master via `POST /api/chart/tag`. Requires a moderator+ session. */
+export async function createChartTag(title: string, signal?: AbortSignal): Promise<void> {
+  const res = await authFetch("/api/chart/tag", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+    signal,
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+}
+
+/** Deletes a tag master and its chart associations. Requires a moderator+ session. */
+export async function deleteChartTag(tagId: number, signal?: AbortSignal): Promise<void> {
+  const res = await authFetch(`/api/chart/tag?tag_id=${encodeURIComponent(tagId)}`, {
+    method: "DELETE",
+    signal,
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+}
+
 /**
  * Edits a chart via `PUT /api/chart?chart_id=...` (multipart). `data` carries
  * the changed fields; `files` optionally replaces chart/bgm/jacket. Requires the
