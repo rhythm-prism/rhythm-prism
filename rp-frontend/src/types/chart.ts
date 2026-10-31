@@ -83,9 +83,10 @@ export interface ChartDetailInfo extends ChartSimpleInfo {
 /**
  * Body fields for `PUT /api/chart` (ChartEditRequest). All optional except
  * `difficulty`, which the backend requires (send `null` to leave it unchanged).
- * Omit `tags` entirely — the backend's validator chokes on null. `collaborators`
- * is supported: send the full desired user-id list (replaces the existing set),
- * or `[]` to clear it.
+ * Omit `tags` entirely — the backend's validator chokes on null. When provided,
+ * `tags` replaces the full tag set; send `[]` to clear it. `collaborators` is
+ * supported: send the full desired user-id list (replaces the existing set), or
+ * `[]` to clear it.
  */
 export interface ChartEditData {
   title?: string;
@@ -98,6 +99,7 @@ export interface ChartEditData {
   description?: string;
   r18?: number;
   collaborators?: string[];
+  tags?: number[];
   // Omit to leave unchanged. Scheduled publishing (with scheduledAt) is not
   // exposed yet but can be added here later.
   publishStatus?: number;

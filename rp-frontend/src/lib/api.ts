@@ -4,6 +4,7 @@ import type {
   ChartEditFiles,
   ChartPostData,
   ChartPostFiles,
+  ChartTag,
   ChartSearchParams,
   ChartSearchResponse,
 } from "../types/chart";
@@ -277,6 +278,16 @@ export async function fetchChartDetail(
   if (res.status === 404) throw new Error("譜面が見つかりません");
   if (!res.ok) throw new Error(`譜面の取得に失敗しました (${res.status})`);
   return (await res.json()) as ChartDetailInfo;
+}
+
+/** Calls the public `GET /api/chart/tag` endpoint and returns the tag master. */
+export async function fetchChartTags(signal?: AbortSignal): Promise<ChartTag[]> {
+  const res = await authFetch("/api/chart/tag", {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+  return (await res.json()) as ChartTag[];
 }
 
 /**

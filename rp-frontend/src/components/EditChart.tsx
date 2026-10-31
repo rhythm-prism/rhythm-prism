@@ -10,6 +10,7 @@ import {
   FILE_SIZE_LIMIT,
   GENRES,
   MAX_COLLABORATORS,
+  MAX_TAGS,
   PERMISSION,
   PUBLISH_STATUS,
   R18_ON,
@@ -21,6 +22,8 @@ import AudioPreviewEditor from "./AudioPreviewEditor";
 import RatingInput from "./RatingInput";
 import CollaboratorPicker from "./CollaboratorPicker";
 import { useAuth } from "../auth/context";
+import ChartTagPicker from "./ChartTagPicker";
+import { useChartTags } from "../hooks/useChartTags";
 
 function fmtTime(sec: number): string {
   const tenths = Math.max(0, Math.round(sec * 10));
@@ -49,6 +52,7 @@ interface FormState {
   publishStatus: number;
   chartFilePublic: boolean;
   collaborators: UserSimpleInfo[];
+  tags: number[];
   startTime: number;
 }
 
@@ -71,6 +75,7 @@ function fromDetail(d: ChartDetailInfo): FormState {
     // originalChart is only returned when the chart file is public (see types/chart.ts).
     chartFilePublic: !!d.originalChart,
     collaborators: d.collaboratorUsers ?? [],
+    tags: d.tags.map((tag) => tag.id),
     // Not returned by the detail endpoint; only used when re-uploading the BGM.
     startTime: 40,
   };
@@ -118,6 +123,8 @@ interface Props {
 
 export default function EditChart({ chartId, onBack, onSaved, onDeleted }: Props) {
   const { user } = useAuth();
+  const { tags, loading: tagsLoading, error: tagsError, reload: reloadTags } = useChartTags();
+  const canEditTags = (user?.permission ?? PERMISSION.NORMAL) > PERMISSION.NORMAL;
   const [form, setForm] = useState<FormState | null>(null);
   const [detail, setDetail] = useState<ChartDetailInfo | null>(null);
   const [conversionStatus, setConversionStatus] = useState<number | null>(null);
@@ -186,6 +193,7 @@ export default function EditChart({ chartId, onBack, onSaved, onDeleted }: Props
     if (f.rating < 0 || f.rating > RATING_MAX) e.push("レベルは0〜50で指定してください");
     if (f.collaborators.length > MAX_COLLABORATORS)
       e.push(`合作ユーザーは${MAX_COLLABORATORS}人以内にしてください`);
+    if (canEditTags && f.tags.length > MAX_TAGS) e.push(`タグは${MAX_TAGS}個以内にしてください`);
     return e;
   }
 
@@ -198,7 +206,6 @@ export default function EditChart({ chartId, onBack, onSaved, onDeleted }: Props
       return;
     }
 
-    // tags are omitted on purpose (no tag-editing UI yet).
     const data: ChartEditData = {
       title: f.title.trim(),
       composer: f.composer.trim(),
@@ -213,6 +220,7 @@ export default function EditChart({ chartId, onBack, onSaved, onDeleted }: Props
       chartFilePublishStatus: f.chartFilePublic ? CHART_FILE_PUBLIC : CHART_FILE_PRIVATE,
       collaborators: f.collaborators.map((u) => u.id),
     };
+    if (canEditTags && !tagsError) data.tags = f.tags;
     // Preview start only matters when the BGM is being replaced.
     if (bgmFile) data.startTime = f.startTime;
 
@@ -460,7 +468,17 @@ export default function EditChart({ chartId, onBack, onSaved, onDeleted }: Props
         />
       </Card>
 
-      <Card title="合作">
+      <Card title={canEditTags ? "タグ・合作" : "合作"}>
+        {canEditTags && (
+          <ChartTagPicker
+            tags={tags}
+            selectedIds={form.tags}
+            loading={tagsLoading}
+            error={tagsError}
+            onChange={(selectedIds) => set("tags", selectedIds)}
+            onRetry={reloadTags}
+          />
+        )}
         <Field label={`合作ユーザー（最大${MAX_COLLABORATORS}人・${form.collaborators.length}人選択中）`}>
           <CollaboratorPicker
             value={form.collaborators}
