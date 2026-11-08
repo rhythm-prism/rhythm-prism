@@ -57,6 +57,8 @@ export interface UserSimpleInfo {
 
 /** Response of `GET /api/chart` (ChartDetailInfoResponse). */
 export interface ChartDetailInfo extends ChartSimpleInfo {
+  /** Whether the current user likes this chart; null when logged out. */
+  isLiked: boolean | null;
   authorUser: UserSimpleInfo;
   description?: string | null;
   updatedAt: number;

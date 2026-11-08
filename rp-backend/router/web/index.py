@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from router.web.chart import delete_chart, edit_chart, post_chart, get_chart, tag, download_chart
+from router.web.chart import delete_chart, edit_chart, post_chart, get_chart, tag, download_chart, likes
 from router.web.user import discord, edit_user, sonolus, auth, get_user, auth_charter
 from router.web.server_info import (
     chart as server_info_chart
@@ -16,6 +16,7 @@ router.include_router(edit_chart.router)
 router.include_router(get_chart.router)
 router.include_router(tag.router)
 router.include_router(download_chart.router)
+router.include_router(likes.router)
 
 router.include_router(discord.router)
 router.include_router(sonolus.router)

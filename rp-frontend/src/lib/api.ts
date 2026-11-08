@@ -280,6 +280,20 @@ export async function fetchChartDetail(
   return (await res.json()) as ChartDetailInfo;
 }
 
+/** Adds or removes the current user's like via `/api/chart/like?chart_id=...`. */
+export async function setChartLike(
+  chartId: string,
+  liked: boolean,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await authFetch(`/api/chart/like?chart_id=${encodeURIComponent(chartId)}`, {
+    method: liked ? "POST" : "DELETE",
+    signal,
+  });
+  if (res.status === 401) throw new Error("ログインが必要です");
+  if (!res.ok) throw new Error(await errorDetail(res));
+}
+
 /** Calls the public `GET /api/chart/tag` endpoint and returns the tag master. */
 export async function fetchChartTags(signal?: AbortSignal): Promise<ChartTag[]> {
   const res = await authFetch("/api/chart/tag", {

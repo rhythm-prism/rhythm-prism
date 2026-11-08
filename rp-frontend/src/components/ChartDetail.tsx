@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ChartDetailInfo } from "../types/chart";
-import { fetchChartDetail, getChartDownloadUrl } from "../lib/api";
+import { fetchChartDetail, getChartDownloadUrl, setChartLike } from "../lib/api";
 import {
   CHART_CONVERSION_COMPLETE,
   DIFFICULTY_BY_ID,
@@ -11,9 +11,18 @@ import {
 import { formatCount, formatDate, jacketGradient } from "../lib/format";
 import { useAuth } from "../auth/context";
 
-function HeartIcon() {
+function HeartIcon({ filled = false }: { filled?: boolean }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinejoin="round"
+      aria-hidden
+    >
       <path d="M12 21s-7.5-4.6-10-9.2C.4 8.6 1.9 4.9 5.4 4.4 7.6 4.1 9.8 5 12 7.7c2.2-2.7 4.4-3.6 6.6-3.3 3.5.5 5 4.2 3.4 7.4C19.5 16.4 12 21 12 21Z" />
     </svg>
   );
@@ -48,11 +57,22 @@ interface Loaded {
   error: string | null;
 }
 
-export default function ChartDetail({ chartId, onBack, onEdit, onSelectUser }: Props) {
+export default function ChartDetail(props: Props) {
+  const { user } = useAuth();
+  // A different chart or account must load its own like state and pending actions.
+  return <ChartDetailContent key={`${props.chartId}:${user?.id ?? "guest"}`} {...props} />;
+}
+
+function ChartDetailContent({ chartId, onBack, onEdit, onSelectUser }: Props) {
   const { user } = useAuth();
   const [data, setData] = useState<Loaded | null>(null);
+  const [liking, setLiking] = useState(false);
+  const [likeError, setLikeError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Pause conversion polling during a mutation so an older response cannot
+    // overwrite the updated like state. Reload after it finishes to sync counts.
+    if (liking) return;
     let cancelled = false;
     const ctrl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -85,12 +105,34 @@ export default function ChartDetail({ chartId, onBack, onEdit, onSelectUser }: P
       ctrl.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [chartId]);
+  }, [chartId, liking]);
 
   const fresh = data !== null && data.id === chartId;
   const loading = !fresh;
   const detail = fresh ? data.detail : null;
   const error = fresh ? data.error : null;
+
+  async function handleLike() {
+    if (liking || !user || (user.permission ?? PERMISSION.NORMAL) < PERMISSION.NORMAL || detail?.isLiked == null) return;
+    const nextLiked = !detail.isLiked;
+    setLiking(true);
+    setLikeError(null);
+    try {
+      await setChartLike(chartId, nextLiked);
+      setData((current) => current?.detail ? {
+        ...current,
+        detail: {
+          ...current.detail,
+          isLiked: nextLiked,
+          likes: Math.max(0, detail.likes + (nextLiked ? 1 : -1)),
+        },
+      } : current);
+    } catch (e) {
+      setLikeError(`いいねの${nextLiked ? "追加" : "削除"}に失敗しました: ${e instanceof Error ? e.message : "不明なエラー"}`);
+    } finally {
+      setLiking(false);
+    }
+  }
 
   const backButton = (
     <button
@@ -151,14 +193,6 @@ export default function ChartDetail({ chartId, onBack, onEdit, onSelectUser }: P
       <div className="flex flex-wrap items-center justify-between gap-3">
         {backButton}
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={sonolusUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xl border border-border bg-surface-2 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
-          >
-            Sonolusで開く
-          </a>
           {canDownload && (
             <a
               href={getChartDownloadUrl(detail.id)}
@@ -286,19 +320,48 @@ export default function ChartDetail({ chartId, onBack, onEdit, onSelectUser }: P
             </div>
           </button>
 
-          <div className="flex items-center gap-4 border-t border-border/60 pt-3 text-sm text-muted">
-            <span className="flex items-center gap-1 text-prism-3">
-              <HeartIcon />
-              {formatCount(detail.likes)}
-            </span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             {detail.firstPublishedAt != null && (
               <span>公開 {formatDate(detail.firstPublishedAt)}</span>
             )}
             <span>更新 {formatDate(detail.updatedAt)}</span>
           </div>
 
+          <div className="flex flex-wrap items-center gap-4 border-t border-border/60 pt-3 text-sm text-muted">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLike}
+                disabled={liking || !user || (user.permission ?? PERMISSION.NORMAL) < PERMISSION.NORMAL || detail.isLiked == null}
+                aria-pressed={detail.isLiked === true}
+                aria-busy={liking}
+                aria-label={`${detail.isLiked ? "いいねを取り消す" : "いいねする"}（${detail.likes}件）`}
+                title={!user ? "いいねするにはログインしてください" : detail.isLiked ? "いいねを取り消す" : "いいねする"}
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-prism-3 px-5 py-2.5 text-sm font-semibold shadow-lg transition-opacity enabled:hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-prism-3 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  detail.isLiked ? "bg-prism-3 text-white" : "bg-surface-2 text-prism-3"
+                }`}
+              >
+                <span className={`flex items-center justify-center ${liking ? "motion-safe:animate-pulse" : ""}`}>
+                  <HeartIcon filled={detail.isLiked === true} />
+                </span>
+                <span className="tabular-nums">{formatCount(detail.likes)}</span>
+              </button>
+              <a
+                href={sonolusUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-border bg-surface-2 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
+              >
+                Sonolusで開く
+              </a>
+            </div>
+          </div>
+          {likeError && (
+            <p role="alert" className="text-sm text-red-300">{likeError}</p>
+          )}
+
           {detail.description && (
-            <p className="whitespace-pre-wrap rounded-xl border border-border bg-surface/80 p-4 text-sm leading-relaxed">
+            <p className="whitespace-pre-wrap rounded-xl border border-border bg-bg p-4 text-sm leading-relaxed">
               {detail.description}
             </p>
           )}

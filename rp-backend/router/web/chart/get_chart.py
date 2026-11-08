@@ -14,7 +14,7 @@ from sonolus_models import (
 from const.env import (
     S3_HOST
 )
-from utils.dependencies import get_current_user_id
+from utils.dependencies import get_current_user_id, get_current_user_id_optional
 from utils.exceptions import RPException
 from const.chart import MusicGenre, R18Status, CollaboStatus, ChartPublishStatus, ChartDifficulty, ChartFilePublishStatus
 from schemas.responses import (
@@ -32,7 +32,8 @@ from db.models import (
     Chart as ChartDB, 
     Event as EventDB,
     ChartCollaborator as ChartCollaboratorDB, 
-    ChartTag as ChartTagDB
+    ChartTag as ChartTagDB,
+    ChartLike as ChartLikeDB
 )
 
 
@@ -52,6 +53,7 @@ def encode_cursor(a: int, b: str) -> str:
 @router.get("/chart", response_model=ChartDetailInfoResponse)
 async def get_chart(
     chart_id: str,
+    user_id: str = Depends(get_current_user_id_optional),
     session: AsyncSession = Depends(create_session)
 ):
     """
@@ -62,6 +64,18 @@ async def get_chart(
     【クエリパラメータ】
     ・chart_id → 譜面ID
     """
+    
+    is_liked = False
+    
+    if user_id is not None:
+        stmt = sql.select(
+            sql.exists()
+            .select_from(ChartLikeDB)
+            .where(ChartLikeDB.user_id == user_id)
+            .where(ChartLikeDB.chart_id == chart_id)
+        )
+        
+        is_liked = (await session.execute(stmt)).scalar()
     
     # 譜面を取得      
     stmt = sql\
@@ -139,7 +153,9 @@ async def get_chart(
             url = chart.preview_url
         ) if chart.preview_hash is not None else None,
         conversionStatus = chart.conversion_status,
-        publishStatus = chart.publish_status
+        publishStatus = chart.publish_status,
+        
+        isLiked = None if user_id is None else is_liked,
     )
     
     

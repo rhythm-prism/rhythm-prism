@@ -110,6 +110,9 @@ class ChartDetailInfoResponse(ChartSimpleInfoResponse):
     events:             List[ChartEventDetailInfoResponse]
     collaborator_users: List[UserDataSimpleInfoResponse] = Field(default_factory=list, alias="collaboratorUsers")
     
+    # ログイン時、いいねをしているかどうかを返却する
+    is_liked:           Optional[bool] = Field(None, alias="isLiked")
+    
 
 class ChartSimpleInfoListResponse(BaseModel):
     """
