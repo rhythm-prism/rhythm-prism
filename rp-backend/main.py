@@ -1,5 +1,6 @@
 import os
 import logging
+import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from fastapi import FastAPI, Request
@@ -8,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from assets.sonolus_item_resource import setup_item_resource
 from const.env import USE_UVICORN
+from utils.time import JST, get_datetime
 
 from router.index import router as index_router
 
@@ -29,9 +31,11 @@ if not logger.handlers:
         encoding="utf-8"
     )
     handler.setLevel(logging.ERROR)
-    handler.setFormatter(logging.Formatter(
+    formatter = logging.Formatter(
         "%(asctime)s JST %(levelname)s pid=%(process)d %(message)s"
-    ))
+    )
+    formatter.converter = lambda timestamp: datetime.datetime.fromtimestamp(timestamp, tz=JST).timetuple()
+    handler.setFormatter(formatter)
     logger.addHandler(handler)
 
 @asynccontextmanager
