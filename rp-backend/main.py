@@ -30,7 +30,7 @@ if not logger.handlers:
     )
     handler.setLevel(logging.ERROR)
     handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s pid=%(process)d %(message)s"
+        "%(asctime)s JST %(levelname)s pid=%(process)d %(message)s"
     ))
     logger.addHandler(handler)
 
