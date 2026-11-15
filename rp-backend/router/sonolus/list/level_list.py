@@ -1,6 +1,7 @@
 from router.sonolus.index import sonolus
 
 import sqlalchemy as sql
+from sqlalchemy.orm import joinedload
 from sonolus_models import (
     ServerItemList,
     LevelItem
@@ -87,6 +88,7 @@ async def get_level_list(ctx, req: dict):
     # ハンドルから検索
     handle = req.get("author_handle")
     if handle is not None:
+        handle = int(handle)
         count_stmt = count_stmt.where(
             ChartDB.author_user.has(UserDB.sonolus_handle == handle)
         )
