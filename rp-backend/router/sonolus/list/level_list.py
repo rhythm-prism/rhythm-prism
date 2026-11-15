@@ -113,7 +113,7 @@ async def get_level_list(ctx, req: dict):
     # ジャンルから検索
     genres = req.get("genre")
     if genres is not None:
-        genres = genres.split(",")
+        genres = [int(genre) for genre in genres.split(",")]
         count_stmt = count_stmt.where(ChartDB.genre.in_(genres))
         base_stmt = base_stmt.where(ChartDB.genre.in_(genres))
     
