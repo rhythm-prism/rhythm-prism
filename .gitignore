@@ -215,3 +215,4 @@ alembic*
 .env.dev.test
 *test.py
 #.claude
+logs
